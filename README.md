@@ -13,9 +13,7 @@ matching the environment used to produce the paper's reported
 numbers. Part 4 additionally requires a Linux environment with root
 privileges and `iproute2`; it is not tied to a specific distribution
 or version (we verified it on Windows via WSL2 running Ubuntu
-22.04.5 LTS -- a different, unrelated environment from the Ubuntu
-24.04.3 LTS VM used for the paper's reported numbers, since Part 4
-only needs general Linux networking support, not that exact setup).
+22.04.5 LTS).
 
 ## Contents
 

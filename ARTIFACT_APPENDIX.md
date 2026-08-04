@@ -410,12 +410,10 @@ reported LAN and WAN network conditions.
 
 Part 4 is not tied to a specific Linux distribution or version --
 any distribution with the kernel features above works. The commands
-below use `Ubuntu-22.04` as a concrete example (this is what was
-used to verify Part 4 and produce the measurements in Section 4.7);
-this is unrelated to, and does not need to match, the Ubuntu
-24.04.3 LTS VM used to produce the paper's own reported numbers
-(Parts 1-3b, which require only Python + `numpy`, run directly on
-the host and are not affected by this distinction).
+below use `Ubuntu-22.04` as a concrete example: this is what was
+used to verify Part 4 and produce the measurements in Section 4.7.
+Parts 1-3b require only Python + `numpy` and run directly on the
+host (no Linux/VM needed).
 
 #### 4.2.1 Checking / installing WSL2 (Windows only)
 
