@@ -408,6 +408,15 @@ reported LAN and WAN network conditions.
 - Python 3 (standard library `socket` only; `numpy` is not required
   for this part).
 
+Part 4 is not tied to a specific Linux distribution or version --
+any distribution with the kernel features above works. The commands
+below use `Ubuntu-22.04` as a concrete example (this is what was
+used to verify Part 4 and produce the measurements in Section 4.7);
+this is unrelated to, and does not need to match, the Ubuntu
+24.04.3 LTS VM used to produce the paper's own reported numbers
+(Parts 1-3b, which require only Python + `numpy`, run directly on
+the host and are not affected by this distinction).
+
 #### 4.2.1 Checking / installing WSL2 (Windows only)
 
 ```powershell

@@ -10,9 +10,12 @@ step-by-step reproduction guide covering all parts below.
 
 Requires Python 3.12.0 and `numpy==1.26.2` (see `requirements.txt`),
 matching the environment used to produce the paper's reported
-numbers. Part 4 additionally requires a Linux environment (WSL2 on
-Windows, verified under Ubuntu 22.04.5 LTS) with root privileges and
-`iproute2`.
+numbers. Part 4 additionally requires a Linux environment with root
+privileges and `iproute2`; it is not tied to a specific distribution
+or version (we verified it on Windows via WSL2 running Ubuntu
+22.04.5 LTS -- a different, unrelated environment from the Ubuntu
+24.04.3 LTS VM used for the paper's reported numbers, since Part 4
+only needs general Linux networking support, not that exact setup).
 
 ## Contents
 
