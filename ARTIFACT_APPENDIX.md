@@ -107,6 +107,11 @@ CORRECTNESS CHECK: PASS
 
 ### 1.5 Usage Example (Custom Inputs)
 
+This is the same `construct_valid_universe` / `sample_subsets_from_universe`
+/ `custom_X` pattern that `mpsi_batch_test.py` (Part 2) automates
+across multiple configurations; shown here standalone, for a single
+explicit configuration, as a minimal reference for the underlying API.
+
 ```python
 from mpsi_protocol import (
     construct_valid_universe,
