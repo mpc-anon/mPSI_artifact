@@ -642,3 +642,20 @@ def run_mpsi_protocol(
         "recovered": sorted(result),
         "cost": cost,
     }
+
+
+if __name__ == "__main__":
+    # Single-instance correctness demo (n=8, t=3, m=100, using
+    # run_mpsi_protocol's own default input generation, where the
+    # planted intersection is common = range(1, m // 5 + 1)).
+    n, t, m = 8, 3, 100
+
+    res = run_mpsi_protocol(n=n, t=t, m=m, verbose=True)
+
+    expected = list(range(1, m // 5 + 1))
+    recovered = res["recovered"]
+    correct = (recovered == expected)
+
+    print(f"\nExpected intersection: {expected}")
+    print(f"Recovered intersection: {recovered}")
+    print("CORRECTNESS CHECK:", "PASS" if correct else "FAIL")

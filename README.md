@@ -19,7 +19,7 @@ or version (we verified it on Windows via WSL2 running Ubuntu
 
 | Path | Part | Description |
 |---|---|---|
-| `protocol/mpsi_protocol.py` | 1 | Protocol implementation. |
+| `protocol/mpsi_protocol.py` | 1 | Protocol implementation; runnable standalone for a single instance. |
 | `protocol/mpsi_batch_test.py` | 2 | Batch correctness test across multiple universe sizes. |
 | `benchmarks/online_cost_model.py` | 3 | Online computation cost, communication volume, and analytical LAN/WAN total time (Table V/VI, Figure 5(a)-(c)). |
 | `benchmarks/party_scalability_model.py` | 3b | Same, sweeping party count `n` up to 100 (Figure 5(d)-(f)). |
@@ -28,9 +28,12 @@ or version (we verified it on Windows via WSL2 running Ubuntu
 ## Quick Start
 
 ```bash
-# Part 1/2: protocol + batch correctness test
+# Part 1: single protocol instance
 python3 -m pip install -r requirements.txt
 cd protocol
+python3 mpsi_protocol.py
+
+# Part 2: batch correctness test (imports and drives Part 1)
 python3 mpsi_batch_test.py
 
 # Part 3: online computation cost

@@ -90,7 +90,22 @@ pip3 install -r requirements.txt
 | `construct_valid_universe`, `sample_subsets_from_universe` | Helpers that build a universe whose elements are guaranteed to insert into a GBF without collision, and let parties draw order-preserving subsets that inherit this guarantee. |
 | `run_mpsi_protocol(...)` | Executes one full end-to-end protocol instance (all 8 phases: offline VOLE preprocessing, offline seed/PRG expansion, online blinding, online share preparation, server-side aggregation, masked aggregation, broadcast and evaluation, final reconstruction) and returns the recovered intersection plus a per-phase cost report. |
 
-### 1.4 Usage Example
+### 1.4 Quick Standalone Run
+
+```bash
+cd protocol
+python3 mpsi_protocol.py
+```
+
+Runs one protocol instance ($n=8$, $t=3$, $m=100$) using
+`run_mpsi_protocol`'s own default input generation (planted
+intersection `common = range(1, m // 5 + 1)`), and prints:
+
+```
+CORRECTNESS CHECK: PASS
+```
+
+### 1.5 Usage Example (Custom Inputs)
 
 ```python
 from mpsi_protocol import (
@@ -115,7 +130,7 @@ res = run_mpsi_protocol(
 print(res["recovered"])   # recovered intersection elements
 ```
 
-### 1.5 Verifying Correctness
+### 1.6 Verifying Correctness
 
 The recovered intersection can be checked against the ground-truth
 intersection computed independently with Python set operations:
