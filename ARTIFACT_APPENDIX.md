@@ -240,12 +240,18 @@ XOR is field-agnostic), plus a single scalar-vector multiplication
 per party. `scalar_vector_mul` in this script implements that
 multiplication as plain integer multiplication with 40-bit
 truncation, not strict GF(2^40) polynomial-basis multiplication --
-this is a deliberate timing-only proxy (numpy has no carry-less
-multiply primitive; both are single vectorized hardware
-instructions of comparable cost), used only because this script
-measures relative timing, not field-correct values. `protocol/mpsi_protocol.py`
-(Part 1), by contrast, implements true GF(2^40) polynomial-basis
-multiplication (`gf40_mul`), since it is the correctness reference.
+this is a deliberate timing-only proxy, used only because this
+script measures relative timing, not field-correct values. numpy has
+no carry-less-multiply (GF(2^k)) primitive to benchmark directly; we
+use ordinary integer multiplication as a stand-in on the assumption
+that a hardware-accelerated GF(2^40) multiply (e.g. via CLMUL
+instructions in a native implementation) would cost about the same
+as ordinary integer multiplication -- a reasonable engineering
+judgment based on general CPU architecture, but not something we
+have separately benchmarked in this repository.
+`protocol/mpsi_protocol.py` (Part 1), by contrast, implements true
+GF(2^40) polynomial-basis multiplication (`gf40_mul_vec`), since it
+is the correctness reference.
 
 ### 3.2 Environment Requirements
 
