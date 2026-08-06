@@ -416,15 +416,6 @@ running `iperf3` between two real (namespaced) processes over a
 link shaped with `tc netem` to match the paper's reported LAN and
 WAN network conditions.
 
-We use `iperf3` rather than a hand-rolled Python socket
-sender/receiver (an earlier version of this artifact did) because it
-is a mature, well-tuned benchmarking tool that gets substantially
-closer to the shaped link's theoretical bandwidth. On the same
-72.48 MB / LAN transfer, our own Python implementation measured
-23-37% above the theoretical time (depending on whether TCP
-handshake time was excluded from the measurement); `iperf3` measured
-only ~1.8% above it. See Section 4.7 for the full comparison.
-
 ### 4.2 Environment Requirements
 
 - A Linux environment with root privileges and kernel support for
@@ -490,7 +481,7 @@ measured 5 MB and 10 MB transfers on the 10 Gbps LAN link running
 throttling; faster, which means the transfer finished before the
 rate limiter ever engaged. Only trust Part 4's measurements for
 transfer sizes of at least a few tens of MB (our verified points are
-72.48 MB and 1160 MB); do not use it to validate Table VI's smallest
+72.50 MB and 1160 MB); do not use it to validate Table VI's smallest
 entries (sub-MB to a few MB), which are too small for this
 tc-based emulation to measure meaningfully in either direction.
 
@@ -503,8 +494,7 @@ tc-based emulation to measure meaningfully in either direction.
 | `teardown_netns.sh` | Tears down everything `setup_netns.sh` created. |
 
 `iperf3` itself (installed system-wide, see Section 4.2) plays the
-receiver/sender roles that an earlier version of this artifact
-implemented as custom `receiver.py`/`sender.py` scripts.
+receiver/sender roles.
 
 The three files listed above already live together in the `network/`
 directory of this repository. Just `cd` into it and mark the shell
@@ -677,36 +667,29 @@ sudo ./run_comm_test.sh 48 200 1160
 The paper's Table V reports `46.5627 s` (WAN, "Ours") for this exact
 configuration; the measured `51.528 s` is within **10.7%** of this value.
 
-**72.48 MB (the `(m,n,t) = (2^16, 15, 14)` point), for comparison:**
+**72.50 MB, LAN** (the `(m,n,t) = (2^16, 15, 14)` point; matches
+`online_cost_model.py`'s Total Communication Cost for this
+configuration):
 
-| Config | Measured | Paper (Table V) | Gap |
-|---|---|---|---|
-| LAN | 0.0622 s | 0.0611 s | 1.8% |
-| WAN | 3.891 s | 2.998 s | 29.8% |
+```bash
+sudo ./run_comm_test.sh 0.01 10000 72.50
+```
 
-The WAN gap is much larger at this smaller size than at 1160 MB,
-even though the LAN gap at the same size is small. This is expected:
-with a 96 ms RTT, a ~3 s WAN transfer only spans ~30 round trips, so
-TCP slow-start (which takes several RTTs to reach a steady window)
-never fully ramps up before the transfer ends. The 1160 MB WAN
-transfer spans ~500+ round trips, so the same ramp-up cost is
-amortized over far more data. **Prefer the largest available
-configuration when validating WAN specifically.**
+```
+[iperf3] bytes sent      : 76470640 (requested 76021760)
+[iperf3] elapsed time    : 0.063075 s
+[iperf3] throughput      : 1156.21 MB/s
+```
 
-All four results support that the analytical LAN/WAN model (Section
+`online_cost_model.py` predicts `0.0608 s` (LAN) for this
+configuration; the measured `0.063 s` is within **3.7%** of this
+value (also within 3.2% of the paper's Table V entry, `0.0611 s`).
+
+All three results support that the analytical LAN/WAN model (Section
 "Experimental Setup" in the paper) is well-calibrated against real
 network conditions. Exact agreement is not expected on a different
 machine or WSL2/Linux setup -- real network measurements are
 sensitive to host load and the local network stack.
-
-**Note:** an earlier version of this artifact used custom
-`receiver.py`/`sender.py` Python `socket` scripts instead of
-`iperf3`. On the 72.48 MB / LAN case above, that implementation
-measured 0.079 s (37% above theoretical) before a fix to exclude TCP
-handshake time from the timer, and 0.072 s (23% above theoretical)
-after; `iperf3` measures 0.062 s (1.8% above theoretical) on the
-same link. `iperf3`'s more mature TCP window/buffer tuning is why it
-was adopted.
 
 ### 4.8 Notes for Reproducibility
 

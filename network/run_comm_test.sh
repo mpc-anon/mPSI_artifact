@@ -7,14 +7,6 @@
 # transfer size, tears down, and prints a summary table.
 # No manual multi-terminal interaction required.
 #
-# We use iperf3 (rather than a hand-rolled Python socket sender/
-# receiver) because it is a widely-used, well-tuned benchmarking
-# tool that gets substantially closer to the shaped link's
-# theoretical bandwidth -- our own Python implementation left
-# ~20-35% of the theoretical bandwidth on the table (TCP window/
-# buffer tuning), whereas iperf3 was consistently within ~4-10% for
-# the transfer sizes this artifact needs (tens of MB and up).
-#
 # IMPORTANT -- minimum transfer size: for very small transfers
 # (we measured 5-10 MB on a 10 Gbps LAN), tc netem's token-bucket
 # rate limiter has not yet been engaged by the time the transfer
