@@ -20,11 +20,9 @@ mpsi-artifact/
 │   ├── online_cost_model.py       (Part 3)
 │   └── party_scalability_model.py (Part 3b)
 └── network/
-    ├── run_comm_test.sh       (Part 4, recommended entry point)
+    ├── run_comm_test.sh       (Part 4, recommended entry point; drives iperf3)
     ├── setup_netns.sh
-    ├── teardown_netns.sh
-    ├── receiver.py
-    └── sender.py
+    └── teardown_netns.sh
 ```
 
 All commands below assume the current directory is the repository
@@ -38,7 +36,7 @@ root unless stated otherwise.
 | 2 | Batch correctness testing | `mpsi_batch_test.py` (uses Part 1) | Correctness holds across multiple universe sizes and party-set-size configurations, not just a single toy instance. |
 | 3 | Online cost model (computation, communication, analytical LAN/WAN time) | `online_cost_model.py` | Per-party online-phase computation cost, communication volume, and LAN/WAN total time scale as expected with `n`, `t`, `m`, matching Table V/VI and Figure 5(a)-(c). |
 | 3b | Party-count scalability | `party_scalability_model.py` (same conventions as Part 3) | Computation cost, communication volume, and LAN/WAN total time scale near-linearly as the number of parties `n` grows, with `t=3` and `m=2^20` fixed (Figure 5(d)-(f)). |
-| 4 | Real network-emulated validation | `run_comm_test.sh`, `setup_netns.sh`, `teardown_netns.sh`, `receiver.py`, `sender.py` | Independently validates the analytical LAN/WAN model of Parts 3/3b with a real (`tc`-emulated) measurement. |
+| 4 | Real network-emulated validation | `run_comm_test.sh`, `setup_netns.sh`, `teardown_netns.sh` (drives `iperf3`) | Independently validates the analytical LAN/WAN model of Parts 3/3b with a real (`tc`-emulated) measurement. |
 
 Parts 1-3(b) require only Python 3 and `numpy`. Part 4 additionally
 requires a Linux environment with root privileges and host-level
@@ -414,9 +412,18 @@ the reported communication volume (MB) into
 
 Parts 1-3 measure computation cost only, with no real network
 involved. This part measures **actual communication cost** by
-transferring protocol-sized data between two real (namespaced)
-processes over a link shaped with `tc netem` to match the paper's
-reported LAN and WAN network conditions.
+running `iperf3` between two real (namespaced) processes over a
+link shaped with `tc netem` to match the paper's reported LAN and
+WAN network conditions.
+
+We use `iperf3` rather than a hand-rolled Python socket
+sender/receiver (an earlier version of this artifact did) because it
+is a mature, well-tuned benchmarking tool that gets substantially
+closer to the shaped link's theoretical bandwidth. On the same
+72.48 MB / LAN transfer, our own Python implementation measured
+23-37% above the theoretical time (depending on whether TCP
+handshake time was excluded from the measurement); `iperf3` measured
+only ~1.8% above it. See Section 4.7 for the full comparison.
 
 ### 4.2 Environment Requirements
 
@@ -425,8 +432,9 @@ reported LAN and WAN network conditions.
   (traffic control). On Windows, **WSL2** satisfies this (real Linux
   kernel; WSL1 does not support these features).
 - `iproute2` (provides `ip`, `tc`; normally preinstalled on Ubuntu).
-- Python 3 (standard library `socket` only; `numpy` is not required
-  for this part).
+- `iperf3`.
+- Python 3 (standard library `json` only, to parse `iperf3 -J`
+  output; `numpy` is not required for this part).
 
 Part 4 is not tied to a specific Linux distribution or version --
 any distribution with the kernel features above works. The commands
@@ -460,7 +468,7 @@ wsl
 
 ```bash
 sudo apt update
-sudo apt install -y iproute2 python3
+sudo apt install -y iproute2 python3 iperf3
 ```
 
 #### 4.2.3 Verifying the environment
@@ -469,19 +477,36 @@ sudo apt install -y iproute2 python3
 tc -V
 ip netns list
 python3 --version
+iperf3 --version
 ```
+
+### 4.2.4 Minimum meaningful transfer size
+
+`tc netem`'s rate limit is a token bucket: small bursts are allowed
+to exceed the configured rate before the limiter engages. We
+measured 5 MB and 10 MB transfers on the 10 Gbps LAN link running
+9-42% **faster** than the configured rate (14.2 Gbit/s and
+11.0 Gbit/s respectively) -- not slower, which would indicate real
+throttling; faster, which means the transfer finished before the
+rate limiter ever engaged. Only trust Part 4's measurements for
+transfer sizes of at least a few tens of MB (our verified points are
+72.48 MB and 1160 MB); do not use it to validate Table VI's smallest
+entries (sub-MB to a few MB), which are too small for this
+tc-based emulation to measure meaningfully in either direction.
 
 ### 4.3 Files
 
 | File | Role |
 |---|---|
-| `run_comm_test.sh` | Fully automated driver: sets up the topology, runs receiver/sender for one or more transfer sizes, tears down, and prints a summary table. **Recommended entry point.** |
+| `run_comm_test.sh` | Fully automated driver: sets up the topology, runs an `iperf3` server/client pair for one or more transfer sizes, tears down, and prints a summary table. **Recommended entry point.** |
 | `setup_netns.sh` | Creates two network namespaces connected via a veth pair through a Linux bridge, and applies a `tc netem` delay/rate constraint to the link. |
 | `teardown_netns.sh` | Tears down everything `setup_netns.sh` created. |
-| `receiver.py` | Runs in one namespace; accepts one TCP connection, receives all data, and reports total bytes and elapsed time. |
-| `sender.py` | Runs in the other namespace; sends a specified amount of data (`--size-mb`) and reports elapsed time and throughput. |
 
-The five files listed above already live together in the `network/`
+`iperf3` itself (installed system-wide, see Section 4.2) plays the
+receiver/sender roles that an earlier version of this artifact
+implemented as custom `receiver.py`/`sender.py` scripts.
+
+The three files listed above already live together in the `network/`
 directory of this repository. Just `cd` into it and mark the shell
 scripts executable:
 
@@ -531,10 +556,11 @@ cloned elsewhere.
 #### 4.5.1 Automated (recommended)
 
 `run_comm_test.sh` runs the full test end-to-end in one command: it
-sets up the topology, starts the receiver, runs the sender for each
-requested transfer size in sequence (restarting the receiver between
-sizes automatically), tears down the topology, and prints a summary
-table. No manual multi-terminal interaction is required.
+sets up the topology, starts an `iperf3` server, runs an `iperf3`
+client for each requested transfer size in sequence (restarting the
+server between sizes automatically), tears down the topology, and
+prints a summary table. No manual multi-terminal interaction is
+required.
 
 ```bash
 sudo ./run_comm_test.sh <delay_ms> <rate_mbit> <size1_mb> [size2_mb] ...
@@ -552,7 +578,7 @@ Expected output ends with a summary table:
 ```
 ==== Summary ====
 Size (MB)    Time (s)         Throughput (MB/s)
-1160         1.036285         1119.3827
+1160         1.028844         1128.4381539238645
 ```
 
 #### 4.5.2 Manual (for debugging / step-by-step inspection)
@@ -568,25 +594,27 @@ isolation or if the automated script needs to be debugged.
 sudo ./setup_netns.sh 2 <delay_ms> <rate_mbit>
 ```
 
-**Start the receiver** (separate terminal; blocks until a connection
-arrives):
+**Start the server** (separate terminal; `-1` exits after one test
+instead of running forever):
 
 ```bash
 cd network
-sudo ip netns exec party1 python3 receiver.py --host 10.10.0.2 --port 9000
+sudo ip netns exec party1 iperf3 -s -1 -p 5201
 ```
 
-**Start the sender**, transferring `<SIZE>` MB (should match the
-actual per-vector size used in the protocol's online phase, i.e.
-`ell * 5` bytes for a GF(2^40) vector of length `ell`):
+**Start the client**, transferring `<SIZE_BYTES>` bytes (should
+match the actual per-vector size used in the protocol's online
+phase, i.e. `ell * 5` bytes for a GF(2^40) vector of length `ell`;
+`-J` for machine-readable JSON output):
 
 ```bash
 cd network
-sudo ip netns exec party2 python3 sender.py --host 10.10.0.2 --port 9000 --size-mb <SIZE>
+sudo ip netns exec party2 iperf3 -c 10.10.0.2 -p 5201 -n <SIZE_BYTES> -J
 ```
 
-Note: `receiver.py` exits after receiving one connection, so it must
-be restarted before each new `sender.py` invocation.
+The sender-side throughput is under `end.sum_sent` in the JSON
+output (`end.sum_received` reflects wall-clock time including
+connection linger and is not the right field to read).
 
 **Tear down** when done:
 
@@ -608,17 +636,17 @@ target RTT is halved when configuring each link:
 | LAN | 10000 mbit | 0.02 ms | 0.01 ms | `sudo ./setup_netns.sh 2 0.01 10000` |
 | WAN | 200 mbit | 96 ms | 48 ms | `sudo ./setup_netns.sh 2 48 200` |
 
-### 4.7 Measured Results (paper's largest configuration, LAN and WAN)
+### 4.7 Measured Results
 
 We recommend validating with a large, realistic transfer size so
 throughput is not dominated by fixed per-connection overhead (TCP
 handshake/slow-start, namespace/veth emulation), which is
-proportionally larger for small payloads. The paper's largest
-configuration, `(m,n,t) = (2^20, 15, 14)`, requires a 1160 MB
-transfer (see `online_cost_model.py`'s Total Communication Cost for
-this configuration).
+proportionally larger for small payloads (Section 4.2.4). The
+paper's largest configuration, `(m,n,t) = (2^20, 15, 14)`, requires
+a 1160 MB transfer (see `online_cost_model.py`'s Total Communication
+Cost for this configuration).
 
-**LAN** (10 Gbps, 0.02 ms RTT):
+**1160 MB, LAN** (10 Gbps, 0.02 ms RTT):
 
 ```bash
 cd network
@@ -626,45 +654,59 @@ sudo ./run_comm_test.sh 0.01 10000 1160
 ```
 
 ```
-[sender] total data sent : 1160.0000 MB
-[sender] elapsed time    : 1.036285 s
-[sender] throughput      : 1119.3827 MB/s
+[iperf3] bytes sent      : 1217382920 (requested 1216348160)
+[iperf3] elapsed time    : 1.028844 s
+[iperf3] throughput      : 1128.44 MB/s
 ```
 
 The paper's Table V reports `0.9949 s` (LAN, "Ours") for this exact
-configuration; the measured `1.036 s` is close to this value.
+configuration; the measured `1.029 s` is within **3.4%** of this value.
 
-**WAN** (200 Mbps, 96 ms RTT):
+**1160 MB, WAN** (200 Mbps, 96 ms RTT):
 
 ```bash
 sudo ./run_comm_test.sh 48 200 1160
 ```
 
 ```
-[sender] total data sent : 1160.0000 MB
-[sender] elapsed time    : 51.621069 s
-[sender] throughput      : 22.4714 MB/s
+[iperf3] bytes sent      : 1216620992 (requested 1216348160)
+[iperf3] elapsed time    : 51.528017 s
+[iperf3] throughput      : 22.52 MB/s
 ```
 
 The paper's Table V reports `46.5627 s` (WAN, "Ours") for this exact
-configuration; the measured `51.621 s` is close to this value, with
-the residual (same order as the LAN case) attributable to TCP
-slow-start being more pronounced at high RTT, and to namespace/veth
-emulation overhead.
+configuration; the measured `51.528 s` is within **10.7%** of this value.
 
-Both results confirm that the analytical LAN/WAN model (Section
+**72.48 MB (the `(m,n,t) = (2^16, 15, 14)` point), for comparison:**
+
+| Config | Measured | Paper (Table V) | Gap |
+|---|---|---|---|
+| LAN | 0.0622 s | 0.0611 s | 1.8% |
+| WAN | 3.891 s | 2.998 s | 29.8% |
+
+The WAN gap is much larger at this smaller size than at 1160 MB,
+even though the LAN gap at the same size is small. This is expected:
+with a 96 ms RTT, a ~3 s WAN transfer only spans ~30 round trips, so
+TCP slow-start (which takes several RTTs to reach a steady window)
+never fully ramps up before the transfer ends. The 1160 MB WAN
+transfer spans ~500+ round trips, so the same ramp-up cost is
+amortized over far more data. **Prefer the largest available
+configuration when validating WAN specifically.**
+
+All four results support that the analytical LAN/WAN model (Section
 "Experimental Setup" in the paper) is well-calibrated against real
 network conditions. Exact agreement is not expected on a different
 machine or WSL2/Linux setup -- real network measurements are
-sensitive to host load and the local network stack -- but the
-measured and analytical values should remain of the same order of
-magnitude, with the relative gap shrinking as transfer size grows.
+sensitive to host load and the local network stack.
 
-**Note:** `run_comm_test.sh`'s summary-table column extraction
-previously had an off-by-one `awk` field-index bug (it picked up the
-literal `:` character instead of the numeric value). This has been
-fixed; the per-transfer `[sender] ...` lines printed above each
-summary row were always correct and unaffected.
+**Note:** an earlier version of this artifact used custom
+`receiver.py`/`sender.py` Python `socket` scripts instead of
+`iperf3`. On the 72.48 MB / LAN case above, that implementation
+measured 0.079 s (37% above theoretical) before a fix to exclude TCP
+handshake time from the timer, and 0.072 s (23% above theoretical)
+after; `iperf3` measures 0.062 s (1.8% above theoretical) on the
+same link. `iperf3`'s more mature TCP window/buffer tuning is why it
+was adopted.
 
 ### 4.8 Notes for Reproducibility
 

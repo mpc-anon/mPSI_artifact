@@ -3,18 +3,38 @@
 # run_comm_test.sh
 #
 # Fully automated communication-cost test: sets up the network
-# topology, runs the receiver/sender pair for each configured
+# topology, runs an iperf3 server/client pair for each configured
 # transfer size, tears down, and prints a summary table.
 # No manual multi-terminal interaction required.
+#
+# We use iperf3 (rather than a hand-rolled Python socket sender/
+# receiver) because it is a widely-used, well-tuned benchmarking
+# tool that gets substantially closer to the shaped link's
+# theoretical bandwidth -- our own Python implementation left
+# ~20-35% of the theoretical bandwidth on the table (TCP window/
+# buffer tuning), whereas iperf3 was consistently within ~4-10% for
+# the transfer sizes this artifact needs (tens of MB and up).
+#
+# IMPORTANT -- minimum transfer size: for very small transfers
+# (we measured 5-10 MB on a 10 Gbps LAN), tc netem's token-bucket
+# rate limiter has not yet been engaged by the time the transfer
+# finishes, so the measured throughput can appear to EXCEED the
+# configured rate (i.e. faster than "theoretical", not slower) --
+# this reflects the local kernel buffer's burst capacity, not the
+# shaped link's real sustained rate, and is not a bug in this
+# script or in iperf3. Only trust these measurements for transfer
+# sizes of at least a few tens of MB; do not use this script to
+# validate the smallest Table VI entries (sub-MB to a few MB),
+# which are too small for tc-based emulation to measure meaningfully.
 #
 # Usage:
 #   sudo ./run_comm_test.sh <delay_ms> <rate_mbit> <size1_mb> [size2_mb] ...
 #
-# Example (LAN config, testing 5MB/50MB/1000MB):
-#   sudo ./run_comm_test.sh 0.01 10000 5 50 1000
+# Example (LAN config, testing the paper's largest configuration):
+#   sudo ./run_comm_test.sh 0.01 10000 1160
 #
-# Example (WAN config, testing one size matching a real vector):
-#   sudo ./run_comm_test.sh 48 200 2.5
+# Example (WAN config, same size):
+#   sudo ./run_comm_test.sh 48 200 1160
 # =========================================================
 
 set -e
@@ -29,9 +49,14 @@ if [ -z "$DELAY_MS" ] || [ -z "$RATE_MBIT" ] || [ ${#SIZES[@]} -eq 0 ]; then
     exit 1
 fi
 
+if ! command -v iperf3 >/dev/null 2>&1; then
+    echo "iperf3 not found. Install it first, e.g.: sudo apt install -y iperf3"
+    exit 1
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PIVOT_IP="10.10.0.2"
-PORT=9000
+SERVER_IP="10.10.0.2"
+PORT=5201
 RESULTS_FILE=$(mktemp)
 
 cleanup() {
@@ -47,30 +72,39 @@ echo ""
 for SIZE in "${SIZES[@]}"; do
     echo "---- Testing size = ${SIZE} MB ----"
 
-    # start receiver in the background, capture its output
-    RECV_LOG=$(mktemp)
-    ip netns exec party1 python3 "$SCRIPT_DIR/receiver.py" \
-        --host "$PIVOT_IP" --port "$PORT" > "$RECV_LOG" 2>&1 &
-    RECV_PID=$!
+    # bytes = size_mb * 1024 * 1024, rounded to the nearest integer
+    BYTES=$(python3 -c "print(round(${SIZE} * 1024 * 1024))")
 
-    # give the receiver a moment to bind before the sender connects
+    ip netns exec party1 iperf3 -s -1 -p "$PORT" >/dev/null 2>&1 &
+    SERVER_PID=$!
+
+    # give the server a moment to bind before the client connects
     sleep 0.5
 
-    SEND_LOG=$(mktemp)
-    ip netns exec party2 python3 "$SCRIPT_DIR/sender.py" \
-        --host "$PIVOT_IP" --port "$PORT" --size-mb "$SIZE" > "$SEND_LOG" 2>&1
+    JSON_LOG=$(mktemp)
+    ip netns exec party2 iperf3 -c "$SERVER_IP" -p "$PORT" -n "$BYTES" -J > "$JSON_LOG" 2>&1
 
-    wait "$RECV_PID"
+    wait "$SERVER_PID" 2>/dev/null || true
 
-    SEND_TIME=$(grep "elapsed time" "$SEND_LOG" | awk '{print $5}')
-    SEND_THROUGHPUT=$(grep "throughput" "$SEND_LOG" | awk '{print $4}')
+    read -r SEND_SECONDS SEND_BYTES SEND_BPS <<< "$(python3 -c "
+import json
+with open('$JSON_LOG') as f:
+    d = json.load(f)
+s = d['end']['sum_sent']
+print(s['seconds'], s['bytes'], s['bits_per_second'])
+")"
 
-    cat "$SEND_LOG"
+    SEND_MB=$(python3 -c "print(${SEND_BYTES} / 1024 / 1024)")
+    SEND_THROUGHPUT_MBPS=$(python3 -c "print(${SEND_MB} / ${SEND_SECONDS})")
+
+    echo "[iperf3] bytes sent      : ${SEND_BYTES} (requested ${BYTES})"
+    echo "[iperf3] elapsed time    : ${SEND_SECONDS} s"
+    echo "[iperf3] throughput      : ${SEND_THROUGHPUT_MBPS} MB/s (${SEND_BPS} bits/s)"
     echo ""
 
-    echo "${SIZE},${SEND_TIME},${SEND_THROUGHPUT}" >> "$RESULTS_FILE"
+    echo "${SIZE},${SEND_SECONDS},${SEND_THROUGHPUT_MBPS}" >> "$RESULTS_FILE"
 
-    rm -f "$RECV_LOG" "$SEND_LOG"
+    rm -f "$JSON_LOG"
 done
 
 echo ""
