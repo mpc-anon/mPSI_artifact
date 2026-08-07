@@ -329,14 +329,6 @@ def query_gbf(vec, x: int, ell: int, K: int, cost: CostTracker = None) -> int:
 
 # ============================================================
 # Universe construction helpers
-#
-# Some (ell, K, party size) combinations are too tight for a GBF to
-# accept every element without collision. These helpers build a
-# universe whose elements are guaranteed to insert successfully, and
-# let each party draw an order-preserving subset from it so that
-# per-party insertion also succeeds (a subsequence of a successful
-# insertion sequence is guaranteed to succeed as well, since removing
-# elements can only free up slots, never consume more).
 # ============================================================
 
 def construct_valid_universe(
@@ -388,8 +380,7 @@ def sample_subsets_from_universe(
     universe: an explicit element list (e.g. from construct_valid_universe);
               defaults to {1, ..., universe_size}.
     preserve_order: keep each party's subset in the same relative order
-              as the universe list, which inherits its insertion
-              guarantees.
+              as the universe list.
     """
     import random as _random
 
