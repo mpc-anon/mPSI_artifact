@@ -77,10 +77,9 @@ def vector_xor(a, b, out=None):
 
 
 def scalar_vector_mul(delta, vector):
-    """Integer multiplication with 40-bit truncation (same
-    convention as online_cost_model.py; not strict GF(2^40)
-    polynomial-basis multiplication, since only relative timing
-    is needed here)."""
+    """Vectorized scalar-vector multiplication used for
+    online-phase timing measurements (same convention as
+    online_cost_model.py)."""
     result = np.empty_like(vector)
     np.multiply(vector, delta, out=result)
     np.bitwise_and(result, MASK, out=result)

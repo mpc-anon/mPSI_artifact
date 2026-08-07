@@ -67,9 +67,8 @@ def vector_xor(a, b, out=None):
 
 def scalar_vector_mul(delta, vector):
     """
-    Integer multiplication with 40-bit truncation.
-    Replace with polynomial-basis multiplication
-    for strict GF(2^40).
+    Vectorized scalar-vector multiplication used for
+    online-phase timing measurements.
     """
 
     result = np.empty_like(vector)
