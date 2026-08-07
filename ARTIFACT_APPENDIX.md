@@ -85,7 +85,6 @@ pip3 install -r requirements.txt
 | `xor_vectors`, `xor_many`, `scalar_vector_mul` | Vector field operations used throughout the protocol. |
 | `PRG(seed, ell)` | Expands a seed into a length-`ell` pseudorandom field vector (SHAKE256-based). |
 | `gen1` / `gen2` | GBF insertion routines executed by the pivot / all other parties respectively (zero-sharing construction). |
-| `construct_valid_universe`, `sample_subsets_from_universe` | Helpers for constructing a shared element universe and drawing per-party subsets from it. |
 | `run_mpsi_protocol(...)` | Executes one full end-to-end protocol instance (all 8 phases: offline VOLE preprocessing, offline seed/PRG expansion, online blinding, online share preparation, server-side aggregation, masked aggregation, broadcast and evaluation, final reconstruction) and returns the recovered intersection plus a per-phase cost report. |
 
 ### 1.4 Quick Standalone Run
